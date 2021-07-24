@@ -27,12 +27,12 @@ LzptTocEntry = Struct('LzptTocEntry', [
 ])
 
 def isLzpt(file):
- """Checks if the LZTP header is present"""
+ """Checks if the LZPT header is present"""
  header = LzptHeader.unpack(file)
  return header and header.magic == lzptHeaderMagic
 
 def readLzpt(file):
- """Decodes an LZTP image and returns its contents"""
+ """Decodes an LZPT image and returns its contents"""
  header = LzptHeader.unpack(file)
 
  if header.magic != lzptHeaderMagic:
@@ -60,3 +60,18 @@ def readLzpt(file):
   gid = 0,
   contents = ChunkedFile(generateChunks),
  )
+
+
+def createLzpt(file, block_size=(64*1024)):
+ block = file.read(block_size)
+ table_of_contents = []
+ data = b''
+ while len(block) > 0:
+  compressed = lz77_compress(block, window_size=4096)
+  offset = len(data)
+  data += compressed
+  table_of_contents.append(LzptTocEntry.pack(offset=offset, size=len(compressed)))
+  block = file.read(block_size)
+
+ header = LzptHeader.pack(magic=lzptHeaderMagic, blockSize=block_size, tocOffset=24, tocSize=(len(table_of_contents) * LzptTocEntry.size))
+ pass

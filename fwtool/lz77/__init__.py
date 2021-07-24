@@ -1,6 +1,9 @@
 """LZ77 decompressor"""
 # Kernel source: lib/lz77/lz77_inflate.c
 
+LZ77_COMPRESSED = (0xF0)
+LZ77_RAW = (0x0F)
+
 def inflateLz77(file):
  """Decodes LZ77 compressed data"""
  type = ord(file.read(1))
@@ -37,3 +40,13 @@ def inflateLz77(file):
       out += file.read(1)
  else:
   raise Exception('Unknown type')
+
+
+def find_longest_match():
+    pass
+
+def deflateLz77(file):
+    pass
+
+if __name__ == "__main__":
+    pass
