@@ -3,11 +3,13 @@
 # Kernel source: arch/arm/mach-cxd90014/include/mach/cmpr.h
 
 import io
+import math
 from stat import *
 
 from . import *
 from .. import lz77
 from ..io import *
+from ..lz77 import deflateLz77
 from ..util import *
 
 # struct wbi_lzp_hdr
@@ -41,7 +43,7 @@ def readLzpt(file):
  tocEntries = [LzptTocEntry.unpack(file, header.tocOffset + offset) for offset in range(0, header.tocSize, LzptTocEntry.size)]
 
  def generateChunks():
-  for entry in tocEntries:
+  for i, entry in enumerate(tocEntries):
    file.seek(entry.offset)
    block = io.BytesIO(file.read(entry.size))
 
@@ -63,15 +65,27 @@ def readLzpt(file):
 
 
 def createLzpt(file, block_size=(64*1024)):
- block = file.read(block_size)
- table_of_contents = []
- data = b''
- while len(block) > 0:
-  compressed = lz77_compress(block, window_size=4096)
-  offset = len(data)
-  data += compressed
-  table_of_contents.append(LzptTocEntry.pack(offset=offset, size=len(compressed)))
-  block = file.read(block_size)
+ from multiprocessing import Pool
+ from math import ceil
 
- header = LzptHeader.pack(magic=lzptHeaderMagic, blockSize=block_size, tocOffset=24, tocSize=(len(table_of_contents) * LzptTocEntry.size))
- pass
+ file.seek(0, os.SEEK_END)
+ file_size = file.tell()
+ file.seek(0)
+ num_chunks = ceil(file_size / block_size)
+ header_size = LzptHeader.size
+ toc_size = (num_chunks * LzptTocEntry.size)
+
+ input_blocks = [io.BytesIO(file.read(block_size)) for i in range(num_chunks)]
+
+ table_of_contents = b""
+ output_data = b""
+ with Pool() as pool:
+  for index, result in enumerate(pool.imap(deflateLz77, input_blocks)):
+   compressed_block = result
+   offset = len(output_data)
+   output_data += compressed_block
+   table_of_contents += LzptTocEntry.pack(offset=(header_size + toc_size + offset), size=len(compressed_block))
+   print("> %.2f%%" % (float(index) / num_chunks * 100))
+
+ header = LzptHeader.pack(magic=lzptHeaderMagic, blockSize=int(math.log2(block_size)), tocOffset=header_size, tocSize=toc_size)
+ return header + table_of_contents + output_data
