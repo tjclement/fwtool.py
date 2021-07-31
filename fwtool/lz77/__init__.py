@@ -77,11 +77,6 @@ def deflateLz77(file, window_size=4095):
  data_index = 0
 
  while data_index < data_len:
-  if flag_index == 8:
-   compressed += bytes([flags]) + section
-   flag_index = 0
-   flags = 0
-   section = b""
   offset, length = find_longest_match(data, data_index, window_size)
   if offset == -1:
    section += data[data_index:data_index+1]
@@ -92,7 +87,13 @@ def deflateLz77(file, window_size=4095):
    section += struct.pack(">H", info)
    flags |= (1 << flag_index)
    data_index += length
+
   flag_index += 1
+  if flag_index == 8:
+   compressed += bytes([flags]) + section
+   flag_index = 0
+   flags = 0
+   section = b""
 
  # Add bytes that mark end of stream
  for finish_index in range(flag_index, 8):

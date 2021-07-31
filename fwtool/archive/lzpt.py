@@ -64,6 +64,17 @@ def readLzpt(file):
  )
 
 
+def pad(data, length):
+ zeroes = b'\x00' * (length-len(data))
+ return data + zeroes
+
+
+def compress_block(block_info, subblock_size=4096):
+ i, block = block_info
+ subblocks = [block[i:i + subblock_size] for i in range(0, len(block), subblock_size)]
+ return b''.join([deflateLz77(io.BytesIO(subblock)) for subblock in subblocks])
+
+
 def createLzpt(file, block_size=(64*1024)):
  from multiprocessing import Pool
  from math import ceil
@@ -75,12 +86,12 @@ def createLzpt(file, block_size=(64*1024)):
  header_size = LzptHeader.size
  toc_size = (num_chunks * LzptTocEntry.size)
 
- input_blocks = [io.BytesIO(file.read(block_size)) for i in range(num_chunks)]
+ input_blocks = [(i, pad(file.read(block_size), block_size)) for i in range(num_chunks)]
 
  table_of_contents = b""
  output_data = b""
  with Pool() as pool:
-  for index, result in enumerate(pool.imap(deflateLz77, input_blocks)):
+  for index, result in enumerate(pool.imap(compress_block, input_blocks)):
    compressed_block = result
    offset = len(output_data)
    output_data += compressed_block
